@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.Common;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Threading;
@@ -13,8 +12,7 @@ namespace CodiumZadanie.Database
         private string ConnectionString = @"Server=.\sqlExpress;Database=CodiumTestDb;User Id=test;Password=Test*11;MultipleActiveResultSets=True";
         private SqlConnection SqlConnector;
         private Random ApiSleeper = new Random();
-        private int SleepTime;
-        private bool ApiSlower =true;
+        private bool ApiSlower = true;
 
         public int CreatedEventCount = 0;
         public int CreatedOddCount = 0;
@@ -33,14 +31,13 @@ namespace CodiumZadanie.Database
             {
                 Console.WriteLine(e.ToString());
             }
-
-            SleepTime = ApiSleeper.Next(0, 10001);
         }
 
         public bool CreateEvent(EventData evnt)
         {
+            var sleepTime = ApiSleeper.Next(0, 10001);
             if (ApiSlower)
-                Thread.Sleep(SleepTime);
+                Thread.Sleep(sleepTime);
 
             var eventId = evnt.ProviderEventID;
 
@@ -55,7 +52,7 @@ namespace CodiumZadanie.Database
             CreatedEventCount++;
             Console.WriteLine(String.Format("{0} DbConnector: New event created: {1}", DateTime.Now, eventId));
 
-                if (evnt.OddsList != null)
+            if (evnt.OddsList != null)
                 CreateOdds(evnt.OddsList, eventId);
 
             return true;
@@ -77,16 +74,17 @@ namespace CodiumZadanie.Database
                 SendDataToDb("pOdd_Create", data);
                 CreatedOddCount++;
                 Console.WriteLine(String.Format("{0} DbConnector: Odd created: {1}", DateTime.Now, odds.ProviderOddsID));
-            
+
             }
         }
 
         public void UpdateEvent(EventData originalEvent, EventData newEventData)
         {
+            var sleepTime = ApiSleeper.Next(0, 10001);
             if (ApiSlower)
-                Thread.Sleep(SleepTime);
+                Thread.Sleep(sleepTime);
 
-            Console.WriteLine(string.Format("Event with ID: {0} already exist, updating changes", originalEvent.ProviderEventID));
+                Console.WriteLine(string.Format("Event with ID: {0} already exist, updating changes", originalEvent.ProviderEventID));
 
             var originalEventId = originalEvent.ProviderEventID;
 
@@ -105,8 +103,8 @@ namespace CodiumZadanie.Database
 
             foreach (var newEventOddData in newEventData.OddsList)
             {
-                var originalEventOddData = originalEvent.OddsList.FirstOrDefault(x=>x.ProviderOddsID ==  newEventOddData.ProviderOddsID);
-               
+                var originalEventOddData = originalEvent.OddsList.FirstOrDefault(x => x.ProviderOddsID == newEventOddData.ProviderOddsID);
+
                 if (originalEventOddData != null)
                 {
                     if (originalEventOddData.Status != newEventOddData.Status)
