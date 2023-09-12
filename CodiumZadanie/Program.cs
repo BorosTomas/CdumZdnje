@@ -1,15 +1,13 @@
 ﻿using CodiumZadanie.Database;
 using CodiumZadanie.Helper;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Runtime.Caching;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CodiumZadanie
@@ -30,7 +28,7 @@ namespace CodiumZadanie
 
             var startTime = DateTime.Now;
             var data = GetAndCompressJsonDocument();
-            CreateEvent(data);
+            CreateOrUpdateEvent(data);
             FinishMessage(startTime);
 
             Console.ReadLine();
@@ -56,19 +54,66 @@ namespace CodiumZadanie
                 , DbConnector.UpdatedOddCount));
         }
 
-        private static void CreateEvent(List<Message> data)
+        private static void CreateOrUpdateEvent(List<Message> data)
         {
+            CreateEvents(data);
+            UpdateEvents(data);
+        }
+
+
+        private static void UpdateEvents(List<Message> data)
+        {
+            var tasks = new List<Task>();
+            Semaphore semaphore = new Semaphore(1, 1);
             Parallel.ForEach(data, d =>
             {
-                var itemExists = EventItemsCache.GetAvailableEvent(d.Event);
+                semaphore.WaitOne();
+                try
+                {
+                    var itemExists = EventItemsCache.GetAvailableEvent(d.Event);
 
-                if (itemExists == null)
-                    DbConnector.CreateEvent(d.Event);
-
-                //this may ocure befor event is real stored in database
-                if (itemExists != null)
-                    DbConnector.UpdateEvent(itemExists, d.Event);
+                    if (itemExists != null)
+                    {
+                        if (itemExists != null)
+                        {
+                            Task task = Task.Run(() => DbConnector.UpdateEvent(itemExists, d.Event));
+                            tasks.Add(task);
+                        }
+                    }
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
             });
+
+            Task.WaitAll(tasks.ToArray());
+        }
+
+        private static void CreateEvents(List<Message> data)
+        {
+            var tasks = new List<Task>();
+            Semaphore semaphore = new Semaphore(1, Environment.ProcessorCount);
+
+            Parallel.ForEach(data, d =>
+            {
+                semaphore.WaitOne();
+                try
+                {
+                    var itemExists = EventItemsCache.GetAvailableEvent(d.Event);
+
+                    if (itemExists == null)
+                    {
+                        var task = Task.Run(() => DbConnector.CreateEvent(d.Event));
+                        tasks.Add(task);
+                    }
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+            Task.WaitAll(tasks.ToArray());
         }
 
 
@@ -90,3 +135,4 @@ namespace CodiumZadanie
 
     }
 }
+
